@@ -1,0 +1,52 @@
+---
+- name: App Monitoring Automation
+  hosts: app_servers
+  become: yes
+
+  vars:
+    alert_email: "alerts@example.com"
+
+  tasks:
+
+    # ---------------------
+    # VERIFY INSTALL (action=verify_install)
+    # ---------------------
+    - name: Ensure assigned service is installed
+      when: action == "verify_install"
+      package:
+        name: "{{ service }}"
+        state: present
+
+
+
+    # ---------------------
+    # CHECK DISK (action=check-disk)
+    # ---------------------
+    - name: Check disk usage on server
+      when: action == "check-disk"
+      shell: df -h --output=pcent,target | tail -n +2
+      register: disk_output
+
+    - name: Print disk usage if >80%
+      when: action == "check-disk"
+      debug:
+        msg: "{{ item }}"
+      loop: "{{ disk_output.stdout_lines }}"
+      when: "'%' in item and (item.split()[0].replace('%','') | int) > 80"
+
+
+
+    # ---------------------
+    # CHECK APPLICATION STATUS (action=check-status)
+    # ---------------------
+    - name: Call REST API to get application status
+      when: action == "check-status"
+      uri:
+        url: "http://<API-SERVER-IP>:5000/healthcheck"
+        method: GET
+      register: app_state
+
+    - name: Print application status
+      when: action == "check-status"
+      debug:
+        msg: "{{ app_state.json }}"
